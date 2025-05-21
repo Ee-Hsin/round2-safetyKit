@@ -19,11 +19,17 @@ class ImageAnalysis(BaseModel):
     has_drawstrings: bool
     confidence: float  # 0.0 to 1.0
     reasoning: str
+    text_analysis: str  # Contains analysis of text found in image
+    text_confidence: float  # Confidence in text analysis
+    text_reasoning: str  # Reasoning for text analysis
 
 class TextAnalysis(BaseModel):
     is_childrens_outerwear: bool
-    confidence: float  # 0.0 to 1.0
-    reasoning: str
+    outerwear_confidence: float  # 0.0 to 1.0
+    outerwear_reasoning: str
+    has_drawstrings: bool
+    drawstring_confidence: float  # 0.0 to 1.0
+    drawstring_reasoning: str
 
 class FinalEvaluation(BaseModel):
     is_violation: bool
@@ -37,7 +43,9 @@ class DrawstringsEvaluator:
         self.IMAGE_PROMPT = """
         You are a product safety expert specializing in children's clothing safety regulations, specifically focused on drawstring policies.
 
-        Task: Analyze this image of a clothing item and determine if it has drawstrings.
+        Task: Analyze this image of a clothing item and determine:
+        1. If it has drawstrings
+        2. If any text in the image indicates it's for children
 
         IMPORTANT: Classify as having drawstrings if there is any reasonable indication of functional or decorative drawstrings.
 
@@ -57,7 +65,7 @@ class DrawstringsEvaluator:
         4. Toggle mechanisms that might indicate the presence of drawstrings
         5. Any hanging cords or strings, even if they appear decorative
 
-        RED FLAGS (indicate likely drawstrings):
+        RED FLAGS for drawstrings:
         - Any visible cords or strings
         - Holes or channels in hoods or waists
         - Toggle mechanisms
@@ -65,18 +73,34 @@ class DrawstringsEvaluator:
         - Any hanging or adjustable features
         - Decorative strings that could be functional
 
+        For text analysis, look for:
+        1. Any text indicating children's sizes (2T, 3T, 4, 5, 6, 7, 8, 10, 12, 14)
+        2. Words like "kids", "children", "toddler", "baby", "youth"
+        3. Age ranges or size indicators
+        4. Any text suggesting the item is for children
+
+        RED FLAGS for children's clothing:
+        - Any children's size indicators
+        - Words like "kids", "children", "toddler", "baby"
+        - Age ranges under 14
+        - Size indicators for children
+
         Provide your analysis with:
         1. Whether the item has drawstrings (be inclusive - if there's any reasonable indication, classify as having drawstrings)
-        2. Your confidence level (0.0 to 1.0)
-        3. Brief reasoning for your decision, including any features you observed
+        2. Your confidence level for drawstring detection (0.0 to 1.0)
+        3. Brief reasoning for your drawstring decision
+        4. Analysis of any text found in the image
+        5. Your confidence level for text analysis (0.0 to 1.0)
+        6. Brief reasoning for your text analysis
         """
 
         self.TEXT_PROMPT = """
         You are a product safety expert specializing in children's clothing safety regulations.
 
-        Task: Evaluate if the following product listing is for children's upper body outerwear.
+        Task: Evaluate if the following product listing is for children's upper body outerwear AND if it contains drawstrings.
 
         IMPORTANT: Classify as children's outerwear if there is any reasonable indication it might be for children and is outerwear.
+        IMPORTANT: Classify as having drawstrings if there is any reasonable indication of functional or decorative drawstrings.
 
         The item is children's upper body outerwear if ANY of these conditions are met:
 
@@ -95,12 +119,39 @@ class DrawstringsEvaluator:
            - Has features typical of outerwear (hoods, heavy fabric, weather protection)
            - Described as warm or protective clothing
 
-        RED FLAGS (indicate likely children's outerwear):
+        The item has drawstrings if ANY of these conditions are met:
+        1. Explicit mentions of drawstrings, cords, or strings:
+           - "drawstring hood"
+           - "adjustable cord"
+           - "toggle string"
+           - "hood strings"
+           - "waist tie"
+           - "elastic cord"
+           - Any mention of adjustable features
+
+        2. Features that imply drawstrings:
+           - "Adjustable hood"
+           - "Toggle closure"
+           - "Elastic waist"
+           - "Adjustable fit"
+           - "Pull cord"
+           - "String closure"
+           - Any mention of adjustable features
+
+        RED FLAGS for children's outerwear:
         - Any mention of children or kids
         - Any children's sizes
         - Any outerwear descriptions
         - Any protective clothing features
         - Any mentions of being for babies or toddlers
+
+        RED FLAGS for drawstrings:
+        - Any mention of strings, cords, or ties
+        - Any adjustable features
+        - Any toggle mechanisms
+        - Any elastic cords
+        - Any pull strings
+        - Any adjustable closures
 
         Product Listing:
         {listing}
@@ -110,8 +161,11 @@ class DrawstringsEvaluator:
 
         Provide your analysis with:
         1. Whether it's likely children's upper body outerwear (be inclusive - if there's any reasonable indication, classify as children's outerwear)
-        2. Your confidence level (0.0 to 1.0)
-        3. Brief reasoning for your decision, including any indicators you found
+        2. Your confidence level for outerwear classification (0.0 to 1.0)
+        3. Brief reasoning for your outerwear decision
+        4. Whether it likely has drawstrings (be inclusive - if there's any reasonable indication, classify as having drawstrings)
+        5. Your confidence level for drawstring detection (0.0 to 1.0)
+        6. Brief reasoning for your drawstring decision
         """
 
         self.FINAL_PROMPT = """
@@ -163,7 +217,7 @@ class DrawstringsEvaluator:
             return json_data["data"]  # Access the "data" array from the JSON structure
 
     async def analyze_image(self, image_url: str) -> ImageAnalysis:
-        """Analyze an image to detect drawstrings."""
+        """Analyze an image to detect drawstrings and text."""
         
         print(f"Analyzing image: {image_url}")
         try:
@@ -181,7 +235,14 @@ class DrawstringsEvaluator:
             return response.output_parsed
         except Exception as e:
             print(f"Error analyzing image: {e}")
-            return ImageAnalysis(has_drawstrings=False, confidence=0.0, reasoning="Error analyzing image")
+            return ImageAnalysis(
+                has_drawstrings=False,
+                confidence=0.0,
+                reasoning="Error analyzing image",
+                text_analysis="No text analysis available",
+                text_confidence=0.0,
+                text_reasoning="Error analyzing image"
+            )
 
     def format_listing(self, listing: Dict) -> str:
         """Format a listing into a clear, structured string highlighting relevant information."""
@@ -230,7 +291,7 @@ class DrawstringsEvaluator:
         return "\n".join(formatted)
 
     async def analyze_text(self, listing: Dict) -> TextAnalysis:
-        """Analyze the listing text to determine if it's children's outerwear."""
+        """Analyze the listing text to determine if it's children's outerwear and if it has drawstrings."""
         try:
             formatted_listing = self.format_listing(listing)
             # Retrieve similar cases
@@ -251,7 +312,14 @@ class DrawstringsEvaluator:
             return response.output_parsed
         except Exception as e:
             print(f"Error analyzing text: {e}")
-            return TextAnalysis(is_childrens_outerwear=False, confidence=0.0, reasoning="Error analyzing text")
+            return TextAnalysis(
+                is_childrens_outerwear=False,
+                outerwear_confidence=0.0,
+                outerwear_reasoning="Error analyzing text",
+                has_drawstrings=False,
+                drawstring_confidence=0.0,
+                drawstring_reasoning="Error analyzing text"
+            )
 
     def format_for_similarity_search(self, listing: Dict) -> str:
         """Format a listing for similarity search (category, description, keywords, materials)."""
@@ -275,10 +343,33 @@ class DrawstringsEvaluator:
                 for i, case in enumerate(similar_cases)
             ]) if similar_cases else "None found."
             
+            # Combine all analyses
+            combined_analysis = {
+                # Drawstring analysis
+                "image_has_drawstrings": image_analysis.has_drawstrings,
+                "image_drawstring_confidence": image_analysis.confidence,
+                "image_drawstring_reasoning": image_analysis.reasoning,
+                "text_has_drawstrings": text_analysis.has_drawstrings,
+                "text_drawstring_confidence": text_analysis.drawstring_confidence,
+                "text_drawstring_reasoning": text_analysis.drawstring_reasoning,
+                
+                # Children's outerwear analysis
+                "is_childrens_outerwear": text_analysis.is_childrens_outerwear,
+                "outerwear_confidence": text_analysis.outerwear_confidence,
+                "outerwear_reasoning": text_analysis.outerwear_reasoning,
+                "image_text_analysis": image_analysis.text_analysis,
+                "image_text_confidence": image_analysis.text_confidence,
+                "image_text_reasoning": image_analysis.text_reasoning
+            }
             
             prompt = self.FINAL_PROMPT.format(
-                image_analysis=f"Has drawstrings: {image_analysis.has_drawstrings}, Confidence: {image_analysis.confidence:.2f}, Reasoning: {image_analysis.reasoning}",
-                text_analysis=f"Is children's outerwear: {text_analysis.is_childrens_outerwear}, Confidence: {text_analysis.confidence:.2f}, Reasoning: {text_analysis.reasoning}",
+                image_analysis=f"Has drawstrings: {combined_analysis['image_has_drawstrings']}, Confidence: {combined_analysis['image_drawstring_confidence']:.2f}, Reasoning: {combined_analysis['image_drawstring_reasoning']}",
+                text_analysis=f"""Drawstring Analysis:
+- Text indicates drawstrings: {combined_analysis['text_has_drawstrings']}, Confidence: {combined_analysis['text_drawstring_confidence']:.2f}, Reasoning: {combined_analysis['text_drawstring_reasoning']}
+
+Children's Outerwear Analysis:
+- Text indicates children's outerwear: {combined_analysis['is_childrens_outerwear']}, Confidence: {combined_analysis['outerwear_confidence']:.2f}, Reasoning: {combined_analysis['outerwear_reasoning']}
+- Image text analysis: {combined_analysis['image_text_analysis']}, Confidence: {combined_analysis['image_text_confidence']:.2f}, Reasoning: {combined_analysis['image_text_reasoning']}""",
                 listing=formatted_listing,
                 similar_cases=similar_cases_str
             )
@@ -301,7 +392,14 @@ class DrawstringsEvaluator:
     async def analyze_all_images(self, image_urls: List[str]) -> ImageAnalysis:
         """Analyze all images in a listing and combine their results."""
         if not image_urls:
-            return ImageAnalysis(has_drawstrings=False, confidence=0.0, reasoning="No images available")
+            return ImageAnalysis(
+                has_drawstrings=False,
+                confidence=0.0,
+                reasoning="No images available",
+                text_analysis="No images available",
+                text_confidence=0.0,
+                text_reasoning="No images available"
+            )
         
         # Analyze all images concurrently
         image_analyses = await asyncio.gather(
@@ -320,29 +418,57 @@ class DrawstringsEvaluator:
             valid_analyses.append(analysis)
         
         if not valid_analyses:
-            return ImageAnalysis(has_drawstrings=False, confidence=0.0, reasoning="No valid image analyses")
+            return ImageAnalysis(
+                has_drawstrings=False,
+                confidence=0.0,
+                reasoning="No valid image analyses",
+                text_analysis="No valid image analyses",
+                text_confidence=0.0,
+                text_reasoning="No valid image analyses"
+            )
         
         # If any image shows drawstrings, consider it a positive
         has_drawstrings = any(analysis.has_drawstrings for analysis in valid_analyses)
         
-        # Take the highest confidence score
+        # Take the highest confidence score for drawstrings
         max_confidence = max(analysis.confidence for analysis in valid_analyses)
         
-        # Combine reasoning from all analyses
-        reasoning_parts = []
+        # Combine reasoning from all analyses for drawstrings
+        drawstring_reasoning_parts = []
         for i, analysis in enumerate(valid_analyses, 1):
             if analysis.has_drawstrings:
-                reasoning_parts.append(f"Image {i}: {analysis.reasoning}")
+                drawstring_reasoning_parts.append(f"Image {i}: {analysis.reasoning}")
         
-        if not reasoning_parts:
-            reasoning_parts = [f"Image {i}: No drawstrings detected" for i in range(1, len(valid_analyses) + 1)]
+        if not drawstring_reasoning_parts:
+            drawstring_reasoning_parts = [f"Image {i}: No drawstrings detected" for i in range(1, len(valid_analyses) + 1)]
         
-        combined_reasoning = " | ".join(reasoning_parts)
+        combined_drawstring_reasoning = " | ".join(drawstring_reasoning_parts)
+        
+        # Combine text analyses
+        text_analyses = []
+        text_confidences = []
+        text_reasonings = []
+        
+        for i, analysis in enumerate(valid_analyses, 1):
+            if analysis.text_analysis and analysis.text_analysis != "No text analysis available":
+                text_analyses.append(analysis.text_analysis)
+                text_confidences.append(analysis.text_confidence)
+                text_reasonings.append(f"Image {i}: {analysis.text_reasoning}")
+        
+        # Take the highest confidence score for text analysis
+        max_text_confidence = max(text_confidences) if text_confidences else 0.0
+        
+        # Combine text reasoning
+        combined_text_reasoning = " | ".join(text_reasonings) if text_reasonings else "No text analysis available"
+        combined_text_analysis = " | ".join(text_analyses) if text_analyses else "No text analysis available"
         
         return ImageAnalysis(
             has_drawstrings=has_drawstrings,
             confidence=max_confidence,
-            reasoning=f"Analyzed {len(valid_analyses)} images. {combined_reasoning}"
+            reasoning=f"Analyzed {len(valid_analyses)} images. {combined_drawstring_reasoning}",
+            text_analysis=combined_text_analysis,
+            text_confidence=max_text_confidence,
+            text_reasoning=f"Analyzed text in {len(valid_analyses)} images. {combined_text_reasoning}"
         )
 
     async def classify_listing(self, listing: Dict) -> DrawStringEvaluation:
@@ -364,18 +490,18 @@ class DrawstringsEvaluator:
             text_threshold = 0.25   # Higher threshold for text
             
             # If both analyses have very low confidence, we can skip the final evaluation
-            if image_analysis.confidence < image_threshold and text_analysis.confidence < text_threshold:
+            if image_analysis.confidence < image_threshold and text_analysis.outerwear_confidence < text_threshold:
                 return DrawStringEvaluation(
                     classification="out_of_scope",
-                    reasoning=f"Low confidence in both analyses. Image: {image_analysis.confidence:.2f}, Text: {text_analysis.confidence:.2f}"
+                    reasoning=f"Low confidence in both analyses. Image: {image_analysis.confidence:.2f}, Text: {text_analysis.outerwear_confidence:.2f}"
                 )
             
             # If only one analysis has low confidence, we can still proceed but note it in the reasoning
             low_confidence_warning = ""
             if image_analysis.confidence < image_threshold:
                 low_confidence_warning += f"Low confidence in image analysis ({image_analysis.confidence:.2f}). "
-            if text_analysis.confidence < text_threshold:
-                low_confidence_warning += f"Low confidence in text analysis ({text_analysis.confidence:.2f}). "
+            if text_analysis.outerwear_confidence < text_threshold:
+                low_confidence_warning += f"Low confidence in text analysis ({text_analysis.outerwear_confidence:.2f}). "
             
             # Make final evaluation
             final_eval = await self.make_final_evaluation(image_analysis, text_analysis, listing)
@@ -426,39 +552,90 @@ class DrawstringsEvaluator:
         false_positives = []
         false_negatives = []
         
+        # Track error patterns
+        error_patterns = {
+            'image_confidence_low': 0,
+            'text_confidence_low': 0,
+            'category_mismatch': 0,
+            'size_confusion': 0,
+            'drawstring_ambiguity': 0
+        }
+        
         for item, pred, true in zip(data, predictions, true_labels):
+            listing = item["reviewInput"]
+            
             if pred == "etsy.childrens_drawstrings" and true != "etsy.childrens_drawstrings":
-                false_positives.append(item["reviewInput"])
+                false_positives.append({
+                    'listing': listing,
+                    'category': listing.get('category', ''),
+                    'title': listing.get('title', ''),
+                    'description': listing.get('description', '')[:200] + '...' if listing.get('description') else ''
+                })
+                
+                # Analyze error patterns
+                if 'children' in listing.get('category', '').lower():
+                    error_patterns['category_mismatch'] += 1
+                if any(size in str(listing.get('description', '')).lower() for size in ['adult', 'men', 'women']):
+                    error_patterns['size_confusion'] += 1
+                    
             elif pred != "etsy.childrens_drawstrings" and true == "etsy.childrens_drawstrings":
-                false_negatives.append(item["reviewInput"])
+                false_negatives.append({
+                    'listing': listing,
+                    'category': listing.get('category', ''),
+                    'title': listing.get('title', ''),
+                    'description': listing.get('description', '')[:200] + '...' if listing.get('description') else ''
+                })
+                
+                # Analyze error patterns
+                if 'drawstring' in str(listing.get('description', '')).lower():
+                    error_patterns['drawstring_ambiguity'] += 1
         
         print("\nError Analysis:")
         print(f"\nFalse Positives (predicted violation but wasn't): {len(false_positives)}")
         for item in false_positives[:5]:  # Show first 5 examples
-            print(f"- {json.dumps(item, indent=2)}")
+            print(f"- Category: {item['category']}")
+            print(f"  Title: {item['title']}")
+            print(f"  Description: {item['description']}")
+            print()
         
         print(f"\nFalse Negatives (missed violations): {len(false_negatives)}")
         for item in false_negatives[:5]:  # Show first 5 examples
-            print(f"- {json.dumps(item, indent=2)}")
+            print(f"- Category: {item['category']}")
+            print(f"  Title: {item['title']}")
+            print(f"  Description: {item['description']}")
+            print()
+            
+        print("\nError Patterns:")
+        for pattern, count in error_patterns.items():
+            if count > 0:
+                print(f"- {pattern}: {count} cases")
 
     async def evaluate(self, data: List[Dict]) -> Tuple[float, float]:
         """Evaluate the model's performance on the dataset concurrently."""
         # Create tasks for all listings
-        tasks = [self.classify_listing(item["reviewInput"]) for item in data]
+        tasks = []
+        for item in data:
+            task = asyncio.create_task(self.classify_listing(item["reviewInput"]))
+            tasks.append(task)
         
         try:
-            # Execute all tasks concurrently and gather results
+            # Execute all tasks concurrently with a timeout
             results = await asyncio.gather(*tasks, return_exceptions=True)
             
             # Filter out any exceptions and None results
             predictions = []
-            for result in results:
+            errors = []
+            for i, result in enumerate(results):
                 if isinstance(result, Exception):
-                    print(f"Task failed with error: {str(result)}")
+                    error_msg = f"Task {i} failed with error: {str(result)}"
+                    print(error_msg)
+                    errors.append(error_msg)
                     predictions.append("out_of_scope")  # Default to out_of_scope on error
                     continue
                 if result is None:
-                    print("Task returned None")
+                    error_msg = f"Task {i} returned None"
+                    print(error_msg)
+                    errors.append(error_msg)
                     predictions.append("out_of_scope")  # Default to out_of_scope on None
                     continue
                 predictions.append(result.classification)
@@ -472,6 +649,12 @@ class DrawstringsEvaluator:
             
             # Analyze errors
             self.analyze_errors(data, predictions, true_labels)
+            
+            # Print error summary if there were any errors
+            if errors:
+                print("\nError Summary:")
+                for error in errors:
+                    print(f"- {error}")
             
             return precision, recall
             
