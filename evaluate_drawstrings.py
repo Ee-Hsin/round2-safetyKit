@@ -37,21 +37,35 @@ class DrawstringsEvaluator:
 
         Task: Analyze this image of a clothing item and determine if it has drawstrings.
 
+        IMPORTANT: When in doubt about the presence of drawstrings, classify as having drawstrings to ensure safety.
+
         A drawstring is any cord, string, or similar feature that can be pulled to adjust the fit of the garment. Common locations for drawstrings include:
-        - Hood drawstrings
+        - Hood drawstrings (most common in children's outerwear)
         - Waist drawstrings
         - Neck drawstrings
         - Any adjustable cords/strings
+        - Toggle cords
+        - Elastic cords with toggles
+        - Any hanging or adjustable strings
 
         Look carefully for:
         1. Visible drawstrings hanging from the garment
         2. Drawstring holes or channels where drawstrings would be threaded
         3. Any adjustable cords or strings that could be used to tighten the garment
+        4. Toggle mechanisms that might indicate the presence of drawstrings
+        5. Any hanging cords or strings, even if they appear decorative
+
+        RED FLAGS (indicate likely drawstrings):
+        - Any visible cords or strings
+        - Holes or channels in hoods or waists
+        - Toggle mechanisms
+        - Elastic cords with toggles
+        - Any hanging or adjustable features
 
         Provide your analysis with:
-        1. Whether the item has drawstrings
+        1. Whether the item has drawstrings (be conservative - if unsure, classify as having drawstrings)
         2. Your confidence level (0.0 to 1.0)
-        3. Brief reasoning for your decision
+        3. Brief reasoning for your decision, including any red flags you noticed
         """
 
         self.TEXT_PROMPT = """
@@ -59,34 +73,41 @@ class DrawstringsEvaluator:
 
         Task: Evaluate if the following product listing is for children's upper body outerwear.
 
-        The item is children's upper body outerwear if ALL of these conditions are met:
-        1. It is intended for children size/age 14 and under (including items intended for babies with no size specified)
-        2. It is upper body outerwear (hoodies, sweatshirts, sweaters, jackets, raincoats, capes, ponchos)
+        IMPORTANT: When in doubt about whether an item is children's outerwear, classify it as children's outerwear to ensure safety.
 
-        IN SCOPE EXAMPLES:
-        - Hoodies for children up to age 14
-        - Baby sweaters (even if size not specified)
-        - Children's jackets up to age 14
-        - Kids' raincoats and ponchos
+        The item is children's upper body outerwear if ANY of these conditions are met:
+        1. It is explicitly stated to be for children size/age 14 and under
+        2. It is described as being for babies, toddlers, or youth
+        3. It is listed in children's sizes (e.g., 2T, 3T, 4, 5, 6, 7, 8, 10, 12, 14)
+        4. It is described as being for children or kids
+        5. It is listed in a children's clothing category
+        6. It is described as being for babies with no size specified
 
-        OUT OF SCOPE EXAMPLES:
-        - Any clothing for sizes/ages over 14
-        - Items clearly intended for adults
-        - Bottoms (pants, shorts)
-        - Dresses
-        - Skirts
-        - Shirts
-        - Hats
-        - Non-clothing items
-        - Baby Wearing Coats
+        AND it is ANY of these types of outerwear:
+        - Hoodies
+        - Sweatshirts
+        - Sweaters
+        - Jackets
+        - Raincoats
+        - Capes
+        - Ponchos
+        - Any garment that covers the upper body and is worn over other clothing
+
+        RED FLAGS (indicate likely children's outerwear):
+        - Mentions of children, kids, baby, toddler, youth
+        - Children's sizes
+        - Children's clothing categories
+        - Descriptions of being for children
+        - Mentions of being for babies
+        - Any indication of being for children 14 and under
 
         Product Listing:
         {listing}
 
         Provide your analysis with:
-        1. Whether it's children's upper body outerwear
+        1. Whether it's children's upper body outerwear (be conservative - if unsure, classify as children's outerwear)
         2. Your confidence level (0.0 to 1.0)
-        3. Brief reasoning for your decision
+        3. Brief reasoning for your decision, including any red flags you noticed
         """
 
         self.FINAL_PROMPT = """
@@ -94,9 +115,11 @@ class DrawstringsEvaluator:
 
         Task: Make a final evaluation of whether this product listing violates the children's drawstrings policy.
 
+        IMPORTANT: When in doubt about any of the conditions, classify as a violation to ensure safety.
+
         POLICY RULES:
-        The item violates the policy if ALL of these conditions are met:
-        1. It is intended for children size/age 14 and under
+        The item violates the policy if ANY of these conditions are met:
+        1. It is intended for children size/age 14 and under (including items intended for babies with no size specified)
         2. It contains drawstrings
         3. It is upper body outerwear (hoodies, sweatshirts, sweaters, jackets, raincoats, capes, ponchos)
 
@@ -110,11 +133,11 @@ class DrawstringsEvaluator:
 
         Please make a final decision by:
         1. Considering both analyses' findings and confidence levels
-        2. Evaluating if ALL three conditions are met
+        2. Evaluating if ANY of the three conditions are met
         3. Providing your confidence in the final decision
         4. Explaining your reasoning, especially if you disagree with either analysis
 
-        Remember: You must be confident that ALL THREE conditions are met to classify this as a violation.
+        Remember: When in doubt, classify as a violation to ensure safety. It's better to flag a potential violation than to miss one.
         """
 
     def load_data(self, file_path: str) -> List[Dict]:
@@ -194,20 +217,13 @@ class DrawstringsEvaluator:
             self.analyze_text(listing)
         )
         
-        if image_analysis.has_drawstrings or (not image_analysis.has_drawstrings and image_analysis.confidence < 0.2) and text_analysis.is_childrens_outerwear or (not text_analysis.is_childrens_outerwear and text_analysis.confidence < 0.2): 
-            # Make final evaluation
-            final_eval = await self.make_final_evaluation(image_analysis, text_analysis)
-            
-            return DrawStringEvaluation(
-                classification="etsy.childrens_drawstrings" if final_eval.is_violation else "out_of_scope",
-                reasoning=final_eval.reasoning
-            )
-            
-        # If both analyses return out of scope, we can skip the final evaluation
+        #Let's always make the final evaluation
+        final_eval = await self.make_final_evaluation(image_analysis, text_analysis)
         return DrawStringEvaluation(
-                classification="out_of_scope",
-                reasoning=f"Low confidence in analyses. Image: {image_analysis.confidence:.2f}, Text: {text_analysis.confidence:.2f}"
-            )
+            classification="etsy.childrens_drawstrings" if final_eval.is_violation else "out_of_scope",
+            reasoning=final_eval.reasoning
+        )
+            
 
     def calculate_precision(self, predictions, true_labels):
         tp = sum(
