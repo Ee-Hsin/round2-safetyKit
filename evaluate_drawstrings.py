@@ -37,35 +37,39 @@ class DrawstringsEvaluator:
 
         Task: Analyze this image of a clothing item and determine if it has drawstrings.
 
-        IMPORTANT: When in doubt about the presence of drawstrings, classify as having drawstrings to ensure safety.
+        IMPORTANT: Only classify as having drawstrings if you can clearly identify a functional drawstring or strong evidence of one.
 
-        A drawstring is any cord, string, or similar feature that can be pulled to adjust the fit of the garment. Common locations for drawstrings include:
+        A drawstring is a functional cord, string, or similar feature that can be pulled to adjust the fit of the garment. Common locations for drawstrings include:
         - Hood drawstrings (most common in children's outerwear)
         - Waist drawstrings
         - Neck drawstrings
-        - Any adjustable cords/strings
-        - Toggle cords
-        - Elastic cords with toggles
-        - Any hanging or adjustable strings
+        - Any adjustable cords/strings that serve a functional purpose
 
         Look carefully for:
         1. Visible drawstrings hanging from the garment
         2. Drawstring holes or channels where drawstrings would be threaded
         3. Any adjustable cords or strings that could be used to tighten the garment
-        4. Toggle mechanisms that might indicate the presence of drawstrings
-        5. Any hanging cords or strings, even if they appear decorative
+        4. Toggle mechanisms that are clearly functional
+        5. Any hanging cords or strings that serve a clear adjustment purpose
 
         RED FLAGS (indicate likely drawstrings):
-        - Any visible cords or strings
-        - Holes or channels in hoods or waists
-        - Toggle mechanisms
-        - Elastic cords with toggles
-        - Any hanging or adjustable features
+        - Functional drawstrings in hoods or waists
+        - Clear drawstring channels with visible strings
+        - Functional toggle mechanisms
+        - Adjustable cords that clearly serve a purpose
+
+        NOT CONSIDERED DRAWSTRINGS:
+        - Purely decorative strings or cords
+        - Non-functional toggles
+        - Zipper pulls
+        - Button loops
+        - Decorative tassels
+        - Non-adjustable cords
 
         Provide your analysis with:
-        1. Whether the item has drawstrings (be conservative - if unsure, classify as having drawstrings)
+        1. Whether the item has functional drawstrings (be specific about what you see)
         2. Your confidence level (0.0 to 1.0)
-        3. Brief reasoning for your decision, including any red flags you noticed
+        3. Brief reasoning for your decision, including any specific features you observed
         """
 
         self.TEXT_PROMPT = """
@@ -73,41 +77,42 @@ class DrawstringsEvaluator:
 
         Task: Evaluate if the following product listing is for children's upper body outerwear.
 
-        IMPORTANT: When in doubt about whether an item is children's outerwear, classify it as children's outerwear to ensure safety.
+        IMPORTANT: Only classify as children's outerwear if there is clear evidence of both children's sizing AND outerwear type.
 
-        The item is children's upper body outerwear if ANY of these conditions are met:
-        1. It is explicitly stated to be for children size/age 14 and under
-        2. It is described as being for babies, toddlers, or youth
-        3. It is listed in children's sizes (e.g., 2T, 3T, 4, 5, 6, 7, 8, 10, 12, 14)
-        4. It is described as being for children or kids
-        5. It is listed in a children's clothing category
-        6. It is described as being for babies with no size specified
+        The item is children's upper body outerwear if BOTH of these conditions are met:
 
-        AND it is ANY of these types of outerwear:
-        - Hoodies
-        - Sweatshirts
-        - Sweaters
-        - Jackets
-        - Raincoats
-        - Capes
-        - Ponchos
-        - Any garment that covers the upper body and is worn over other clothing
+        1. It is clearly for children, indicated by ANY of these:
+           - Explicitly stated to be for children size/age 14 and under
+           - Listed in specific children's sizes (2T, 3T, 4, 5, 6, 7, 8, 10, 12, 14)
+           - Clearly described as being for babies, toddlers, or youth
+           - Listed in a children's clothing category with clear age/size indicators
+
+        2. It is clearly upper body outerwear, indicated by ANY of these:
+           - Explicitly described as a hoodie, sweatshirt, sweater, jacket, raincoat, cape, or poncho
+           - Clearly described as being worn over other clothing
+           - Specifically mentioned as outerwear or outer layer
+           - Has features typical of outerwear (hoods, heavy fabric, weather protection)
 
         RED FLAGS (indicate likely children's outerwear):
-        - Mentions of children, kids, baby, toddler, youth
-        - Children's sizes
-        - Children's clothing categories
-        - Descriptions of being for children
-        - Mentions of being for babies
-        - Any indication of being for children 14 and under
+        - Clear children's size indicators (2T-14)
+        - Explicit mentions of being for children/babies
+        - Clear outerwear descriptions
+        - Specific outerwear features mentioned
+
+        NOT CONSIDERED CHILDREN'S OUTERWEAR:
+        - Items that only mention "kids" in the title but are clearly for adults
+        - Items that don't specify age/size
+        - Items that could be for any age
+        - Items that don't clearly indicate outerwear type
+        - Items that are clearly for adults but mention "kids" in passing
 
         Product Listing:
         {listing}
 
         Provide your analysis with:
-        1. Whether it's children's upper body outerwear (be conservative - if unsure, classify as children's outerwear)
+        1. Whether it's clearly children's upper body outerwear (be specific about the evidence)
         2. Your confidence level (0.0 to 1.0)
-        3. Brief reasoning for your decision, including any red flags you noticed
+        3. Brief reasoning for your decision, including specific indicators you found
         """
 
         self.FINAL_PROMPT = """
@@ -115,13 +120,13 @@ class DrawstringsEvaluator:
 
         Task: Make a final evaluation of whether this product listing violates the children's drawstrings policy.
 
-        IMPORTANT: When in doubt about any of the conditions, classify as a violation to ensure safety.
+        IMPORTANT: Only classify as a violation if there is clear evidence of ALL THREE conditions.
 
         POLICY RULES:
-        The item violates the policy if ANY of these conditions are met:
-        1. It is intended for children size/age 14 and under (including items intended for babies with no size specified)
-        2. It contains drawstrings
-        3. It is upper body outerwear (hoodies, sweatshirts, sweaters, jackets, raincoats, capes, ponchos)
+        The item violates the policy if ALL of these conditions are met:
+        1. It is clearly intended for children size/age 14 and under
+        2. It clearly contains functional drawstrings
+        3. It is clearly upper body outerwear
 
         You have received two separate analyses:
 
@@ -133,11 +138,14 @@ class DrawstringsEvaluator:
 
         Please make a final decision by:
         1. Considering both analyses' findings and confidence levels
-        2. Evaluating if ANY of the three conditions are met
+        2. Evaluating if ALL THREE conditions are clearly met
         3. Providing your confidence in the final decision
         4. Explaining your reasoning, especially if you disagree with either analysis
 
-        Remember: When in doubt, classify as a violation to ensure safety. It's better to flag a potential violation than to miss one.
+        Remember: 
+        - You must have clear evidence of ALL THREE conditions to classify as a violation
+        - If any condition is unclear or ambiguous, classify as out_of_scope
+        - Focus on clear, explicit evidence rather than assumptions
         """
 
     def load_data(self, file_path: str) -> List[Dict]:
