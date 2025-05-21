@@ -1,0 +1,174 @@
+{
+    "data": [
+        {
+            "reviewInput": {
+                "category": "clothing.gender_neutral_kids_clothing.hoodies_and_sweatshirts.hoodies",
+                "currency_code": "USD",
+                "description": "Cozy hooded sweatshirt for children. Features a decorative toggle cord on the hood that can be adjusted. Perfect for layering in cool weather.",
+                "etsy_listing": "Physical",
+                "id": "edge_case_1",
+                "images": [],
+                "keywords": ["hoodie", "sweatshirt", "kids", "hooded", "toggle", "children's clothing", "youth apparel"],
+                "materials": ["cotton", "polyester"],
+                "ships_from": "United States",
+                "title": "Kids' Hooded Sweatshirt with Toggle Cord",
+                "type": "etsy_listing",
+                "videos": []
+            },
+            "expectedOutcome": "etsy.childrens_drawstrings"
+        },
+        {
+            "reviewInput": {
+                "category": "clothing.gender_neutral_adult_clothing.hoodies_and_sweatshirts.hoodies",
+                "currency_code": "USD",
+                "description": "Versatile jacket designed for parents wearing babies. Features a waist tie for adjustment. Can be worn by adults or used as a baby carrier cover.",
+                "etsy_listing": "Physical",
+                "id": "edge_case_2",
+                "images": [],
+                "keywords": ["baby-wearing", "jacket", "waist tie", "adjustable", "adult clothing", "outerwear"],
+                "materials": ["nylon", "polyester"],
+                "ships_from": "United States",
+                "title": "Unisex Baby-Wearing Jacket with Waist Tie",
+                "type": "etsy_listing",
+                "videos": []
+            },
+            "expectedOutcome": "out_of_scope"
+        },
+        {
+            "reviewInput": {
+                "category": "clothing.gender_neutral_kids_clothing.hoodies_and_sweatshirts.sweatshirts",
+                "currency_code": "USD",
+                "description": "Team soccer jersey for youth players. Features elastic neck with adjustable cord for team number display. Size range includes youth sizes.",
+                "etsy_listing": "Physical",
+                "id": "edge_case_3",
+                "images": [],
+                "keywords": ["soccer", "jersey", "youth", "team", "elastic", "sports uniform", "children's clothing"],
+                "materials": ["polyester", "spandex"],
+                "ships_from": "United States",
+                "title": "Youth Soccer Jersey with Elastic Neck",
+                "type": "etsy_listing",
+                "videos": []
+            },
+            "expectedOutcome": "etsy.childrens_drawstrings"
+        },
+        {
+            "reviewInput": {
+                "category": "clothing.gender_neutral_kids_clothing.hoodies_and_sweatshirts.hoodies",
+                "currency_code": "USD",
+                "description": "Waterproof poncho for toddlers. Features a drawstring hood for weather protection. Perfect for rainy days.",
+                "etsy_listing": "Physical",
+                "id": "edge_case_4",
+                "images": [],
+                "keywords": ["rain", "poncho", "toddler", "hooded", "children's outerwear", "waterproof"],
+                "materials": ["PVC", "polyester"],
+                "ships_from": "United States",
+                "title": "Toddler Rain Poncho with Drawstring Hood",
+                "type": "etsy_listing",
+                "videos": []
+            },
+            "expectedOutcome": "etsy.childrens_drawstrings"
+        },
+        {
+            "reviewInput": {
+                "category": "clothing.gender_neutral_kids_clothing.hoodies_and_sweatshirts.hoodies",
+                "currency_code": "USD",
+                "description": "Matching family hoodie set. Includes adult and children's sizes. All hoodies feature decorative strings on hood. Can be purchased individually or as a set.",
+                "etsy_listing": "Physical",
+                "id": "edge_case_5",
+                "images": [],
+                "keywords": ["family", "matching", "hoodie", "set", "children's clothing", "family set"],
+                "materials": ["cotton", "polyester"],
+                "ships_from": "United States",
+                "title": "Multi-Size Family Hoodie Set",
+                "type": "etsy_listing",
+                "videos": []
+            },
+            "expectedOutcome": "etsy.childrens_drawstrings"
+        },
+        {
+            "reviewInput": {
+                "category": "clothing.gender_neutral_kids_clothing.hoodies_and_sweatshirts.sweatshirts",
+                "currency_code": "USD",
+                "description": "Knit cardigan for babies. Not intended for outerwear use.",
+                "etsy_listing": "Physical",
+                "id": "edge_case_6",
+                "images": [],
+                "keywords": ["cardigan", "baby", "knit", "ribbon", "children's clothing", "baby clothing"],
+                "materials": ["cotton", "wool"],
+                "ships_from": "United States",
+                "title": "Baby Cardigan with Ribbon Ties",
+                "type": "etsy_listing",
+                "videos": []
+            },
+            "expectedOutcome": "out_of_scope"
+        },
+        {
+            "reviewInput": {
+                "category": "clothing.gender_neutral_kids_clothing.hoodies_and_sweatshirts.hoodies",
+                "currency_code": "USD",
+                "description": "Denim jacket for teens. Features toggle closure on hood. Size range includes youth and adult sizes.",
+                "etsy_listing": "Physical",
+                "id": "edge_case_7",
+                "images": [],
+                "keywords": ["denim", "jacket", "teen", "hooded", "youth clothing", "outerwear"],
+                "materials": ["denim", "cotton"],
+                "ships_from": "United States",
+                "title": "Teen Denim Jacket with Toggle Closure",
+                "type": "etsy_listing",
+                "videos": []
+            },
+            "expectedOutcome": "etsy.childrens_drawstrings"
+        },
+        {
+            "reviewInput": {
+                "category": "clothing.gender_neutral_kids_clothing.hoodies_and_sweatshirts.hoodies",
+                "currency_code": "USD",
+                "description": "Superhero cape for children. Features Velcro closure at neck. Not intended for regular wear.",
+                "etsy_listing": "Physical",
+                "id": "edge_case_8",
+                "images": [],
+                "keywords": ["costume", "cape", "superhero", "kids", "children's clothing", "costume"],
+                "materials": ["polyester", "velcro"],
+                "ships_from": "United States",
+                "title": "Kids' Costume Cape with Velcro",
+                "type": "etsy_listing",
+                "videos": []
+            },
+            "expectedOutcome": "out_of_scope"
+        },
+        {
+            "reviewInput": {
+                "category": "clothing.gender_neutral_kids_clothing.hoodies_and_sweatshirts.hoodies",
+                "currency_code": "USD",
+                "description": "Lightweight track jacket for youth. Features elastic cords with toggles at waist and hood. Size range includes youth sizes.",
+                "etsy_listing": "Physical",
+                "id": "edge_case_9",
+                "images": [],
+                "keywords": ["track", "jacket", "youth", "sports", "children's clothing", "outerwear"],
+                "materials": ["nylon", "polyester"],
+                "ships_from": "United States",
+                "title": "Youth Track Jacket with Elastic Cords",
+                "type": "etsy_listing",
+                "videos": []
+            },
+            "expectedOutcome": "etsy.childrens_drawstrings"
+        },
+        {
+            "reviewInput": {
+                "category": "clothing.gender_neutral_kids_clothing.hoodies_and_sweatshirts.hoodies",
+                "currency_code": "USD",
+                "description": "Warm winter coat for toddlers. Features decorative strings on hood that cannot be pulled or adjusted. Purely decorative elements.",
+                "etsy_listing": "Physical",
+                "id": "edge_case_10",
+                "images": [],
+                "keywords": ["winter", "coat", "toddler", "hooded", "children's outerwear", "winter clothing"],
+                "materials": ["polyester", "down"],
+                "ships_from": "United States",
+                "title": "Toddler Winter Coat with Decorative Strings",
+                "type": "etsy_listing",
+                "videos": []
+            },
+            "expectedOutcome": "out_of_scope"
+        }
+    ]
+} 

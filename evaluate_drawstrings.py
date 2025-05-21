@@ -7,6 +7,7 @@ from tqdm import tqdm
 from pydantic import BaseModel
 import asyncio
 from tqdm.asyncio import tqdm as async_tqdm
+from vector_store import VectorStore
 # Load environment variables
 load_dotenv()
 
@@ -32,6 +33,7 @@ class FinalEvaluation(BaseModel):
 class DrawstringsEvaluator:
     def __init__(self):
         self.client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self.vector_store = VectorStore()  # Initialize vector store
         self.IMAGE_PROMPT = """
         You are a product safety expert specializing in children's clothing safety regulations, specifically focused on drawstring policies.
 
@@ -103,6 +105,9 @@ class DrawstringsEvaluator:
         Product Listing:
         {listing}
 
+        Similar Cases (for additional context):
+        {similar_cases}
+
         Provide your analysis with:
         1. Whether it's likely children's upper body outerwear (be inclusive - if there's any reasonable indication, classify as children's outerwear)
         2. Your confidence level (0.0 to 1.0)
@@ -133,18 +138,22 @@ class DrawstringsEvaluator:
         Original Product Listing:
         {listing}
 
+        Similar Cases (for additional context, the classification here of 'out_of_scope' means that the case is NOT a violation, while 'etsy.childrens_drawstrings' means that the case is a violation):
+        {similar_cases}
+
         Please make a final decision by:
         1. Considering both analyses' findings and confidence levels
         2. Reviewing the original product listing for any additional context
-        3. Evaluating if there is any reasonable indication that ALL THREE conditions are met
-        4. Providing your confidence in the final decision
-        5. Explaining your reasoning, especially if you disagree with either analysis
+        3. Considering the similar cases and their classifications to help inform your decision
+        4. Evaluating if there is any reasonable indication that ALL THREE conditions are met
+        5. Providing your confidence in the final decision
+        6. Explaining your reasoning, especially if you disagree with either analysis or if the similar cases suggest a different outcome
 
         Remember: 
         - If there is any reasonable indication that ALL THREE conditions are met, classify as a violation
         - When in doubt about any condition, consider the overall context and likelihood
         - It's better to flag a potential violation than to miss one
-        - Use the original listing to resolve any ambiguities in the analyses
+        - Use the original listing and similar cases to resolve any ambiguities in the analyses
         """
 
     def load_data(self, file_path: str) -> List[Dict]:
@@ -224,11 +233,17 @@ class DrawstringsEvaluator:
         """Analyze the listing text to determine if it's children's outerwear."""
         try:
             formatted_listing = self.format_listing(listing)
+            # Retrieve similar cases
+            similar_cases = self.get_similar_cases(listing, n_results=3)
+            similar_cases_str = "\n\n".join([
+                f"Similar Case {i+1}:\n{case['text']}\nClassification: {case['metadata']['classification']}"
+                for i, case in enumerate(similar_cases)
+            ]) if similar_cases else "None found."
             response = await self.client.responses.parse(
                 model="gpt-4.1",
                 input=[
                     {"role": "system", "content": "You are a product safety expert specializing in children's clothing regulations."},
-                    {"role": "user", "content": self.TEXT_PROMPT.format(listing=formatted_listing)}
+                    {"role": "user", "content": self.TEXT_PROMPT.format(listing=formatted_listing, similar_cases=similar_cases_str)}
                 ],
                 text_format=TextAnalysis,
                 temperature=0.2
@@ -238,16 +253,37 @@ class DrawstringsEvaluator:
             print(f"Error analyzing text: {e}")
             return TextAnalysis(is_childrens_outerwear=False, confidence=0.0, reasoning="Error analyzing text")
 
+    def format_for_similarity_search(self, listing: Dict) -> str:
+        """Format a listing for similarity search (category, description, keywords, materials)."""
+        return f"Category: {listing.get('category', '')}\nDescription: {listing.get('description', '')}\nKeywords: {', '.join(listing.get('keywords', []))}\nMaterials: {', '.join(listing.get('materials', []))}"
+
+    def get_similar_cases(self, listing: Dict, n_results: int = 3):
+        """Retrieve similar cases from the vector store."""
+        query = self.format_for_similarity_search(listing)
+        
+        print(f"Query: {query}")
+        return self.vector_store.search_similar_cases(query, n_results=n_results)
+
     async def make_final_evaluation(self, image_analysis: ImageAnalysis, text_analysis: TextAnalysis, listing: Dict) -> FinalEvaluation:
-        """Make a final evaluation based on both analyses and the original listing."""
+        """Make a final evaluation based on both analyses, the original listing, and similar cases."""
         try:
             formatted_listing = self.format_listing(listing)
+            # Retrieve similar cases
+            similar_cases = self.get_similar_cases(listing, n_results=3)
+            similar_cases_str = "\n\n".join([
+                f"Similar Case {i+1}:\n{case['text']}\nClassification: {case['metadata']['classification']}"
+                for i, case in enumerate(similar_cases)
+            ]) if similar_cases else "None found."
+            
+            
             prompt = self.FINAL_PROMPT.format(
                 image_analysis=f"Has drawstrings: {image_analysis.has_drawstrings}, Confidence: {image_analysis.confidence:.2f}, Reasoning: {image_analysis.reasoning}",
                 text_analysis=f"Is children's outerwear: {text_analysis.is_childrens_outerwear}, Confidence: {text_analysis.confidence:.2f}, Reasoning: {text_analysis.reasoning}",
-                listing=formatted_listing
+                listing=formatted_listing,
+                similar_cases=similar_cases_str
             )
             
+            print(f"Prompt: {prompt}")
             response = await self.client.responses.parse(
                 model="gpt-4.1",
                 input=[
@@ -255,7 +291,7 @@ class DrawstringsEvaluator:
                     {"role": "user", "content": prompt}
                 ],
                 text_format=FinalEvaluation,
-                temperature=0.2
+                temperature=0.3
             )
             return response.output_parsed
         except Exception as e:
@@ -311,30 +347,53 @@ class DrawstringsEvaluator:
 
     async def classify_listing(self, listing: Dict) -> DrawStringEvaluation:
         """Classify a single listing using both image and text analysis."""
-        # Get all image URLs from the listing
-        image_urls = listing.get("images", [])
-        
-        # Run both analyses concurrently
-        image_analysis, text_analysis = await asyncio.gather(
-            self.analyze_all_images(image_urls),
-            self.analyze_text(listing)
-        )
-        
-        # If either analysis has low confidence, we can skip the final evaluation
-        if image_analysis.confidence < 0.2 or text_analysis.confidence < 0.2:
+        try:
+            # Get all image URLs from the listing
+            image_urls = listing.get("images", [])
+            
+            # Run both analyses concurrently
+            image_analysis, text_analysis = await asyncio.gather(
+                self.analyze_all_images(image_urls),
+                self.analyze_text(listing)
+            )
+            
+            # Adjust confidence thresholds based on the type of analysis
+            # For image analysis, we want to be more lenient since images might be unclear
+            # For text analysis, we can be more strict since text is usually more reliable
+            image_threshold = 0.15  # Lower threshold for images
+            text_threshold = 0.25   # Higher threshold for text
+            
+            # If both analyses have very low confidence, we can skip the final evaluation
+            if image_analysis.confidence < image_threshold and text_analysis.confidence < text_threshold:
+                return DrawStringEvaluation(
+                    classification="out_of_scope",
+                    reasoning=f"Low confidence in both analyses. Image: {image_analysis.confidence:.2f}, Text: {text_analysis.confidence:.2f}"
+                )
+            
+            # If only one analysis has low confidence, we can still proceed but note it in the reasoning
+            low_confidence_warning = ""
+            if image_analysis.confidence < image_threshold:
+                low_confidence_warning += f"Low confidence in image analysis ({image_analysis.confidence:.2f}). "
+            if text_analysis.confidence < text_threshold:
+                low_confidence_warning += f"Low confidence in text analysis ({text_analysis.confidence:.2f}). "
+            
+            # Make final evaluation
+            final_eval = await self.make_final_evaluation(image_analysis, text_analysis, listing)
+            
+            # Combine the low confidence warning with the final evaluation reasoning
+            combined_reasoning = f"{low_confidence_warning}{final_eval.reasoning}"
+            
+            return DrawStringEvaluation(
+                classification="etsy.childrens_drawstrings" if final_eval.is_violation else "out_of_scope",
+                reasoning=combined_reasoning
+            )
+            
+        except Exception as e:
+            print(f"Error classifying listing: {str(e)}")
             return DrawStringEvaluation(
                 classification="out_of_scope",
-                reasoning=f"Low confidence in analyses. Image: {image_analysis.confidence:.2f}, Text: {text_analysis.confidence:.2f}"
+                reasoning=f"Error during classification: {str(e)}"
             )
-        
-        # Make final evaluation
-        final_eval = await self.make_final_evaluation(image_analysis, text_analysis, listing)
-        
-        return DrawStringEvaluation(
-            classification="etsy.childrens_drawstrings" if final_eval.is_violation else "out_of_scope",
-            reasoning=final_eval.reasoning
-        )
-            
 
     def calculate_precision(self, predictions, true_labels):
         tp = sum(
@@ -412,7 +471,7 @@ class DrawstringsEvaluator:
             recall = self.calculate_recall(predictions, true_labels)
             
             # Analyze errors
-            # self.analyze_errors(data, predictions, true_labels)
+            self.analyze_errors(data, predictions, true_labels)
             
             return precision, recall
             
@@ -422,6 +481,9 @@ class DrawstringsEvaluator:
 
 async def main():
     evaluator = DrawstringsEvaluator()
+    
+    # Debug the collection
+    evaluator.vector_store.debug_collection()
     
     # Load the dataset
     data = evaluator.load_data("labeled_dataset.json")
