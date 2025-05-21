@@ -58,6 +58,13 @@ class DrawstringsEvaluator:
         - Elastic cords with toggles
         - Any hanging or adjustable strings
 
+        IMPORTANT DISTINCTIONS:
+        - Toggle buttons/closures are NOT drawstrings
+        - Zipper pulls are NOT drawstrings
+        - Decorative cords that cannot be pulled to adjust fit are NOT drawstrings
+        - Elastic waistbands without drawstrings are NOT drawstrings
+        - Belt loops are NOT drawstrings
+
         Look carefully for:
         1. Visible drawstrings hanging from the garment
         2. Drawstring holes or channels where drawstrings would be threaded
@@ -119,6 +126,12 @@ class DrawstringsEvaluator:
            - Has features typical of outerwear (hoods, heavy fabric, weather protection)
            - Described as warm or protective clothing
 
+        IMPORTANT EXCEPTIONS:
+        - If the item is clearly marked as adult size AND only mentions children in marketing context, it's NOT children's outerwear
+        - If the item is vintage/collectible and not intended for current use, it's NOT children's outerwear
+        - If the item is listed in both adult and children's sizes, only the children's sizes are considered
+        - If the item is primarily for adults with only passing mention of children, it's NOT children's outerwear
+
         The item has drawstrings if ANY of these conditions are met:
         1. Explicit mentions of drawstrings, cords, or strings:
            - "drawstring hood"
@@ -137,6 +150,13 @@ class DrawstringsEvaluator:
            - "Pull cord"
            - "String closure"
            - Any mention of adjustable features
+
+        IMPORTANT DISTINCTIONS:
+        - Toggle buttons/closures are NOT drawstrings
+        - Zipper pulls are NOT drawstrings
+        - Decorative cords that cannot be pulled to adjust fit are NOT drawstrings
+        - Elastic waistbands without drawstrings are NOT drawstrings
+        - Belt loops are NOT drawstrings
 
         RED FLAGS for children's outerwear:
         - Any mention of children or kids
@@ -218,13 +238,24 @@ class DrawstringsEvaluator:
 
     async def analyze_image(self, image_url: str) -> ImageAnalysis:
         """Analyze an image to detect drawstrings and text."""
-        
-        print(f"Analyzing image: {image_url}")
         try:
+            # Add explicit JSON formatting instructions to the prompt
+            json_format_instructions = """
+            Please provide your analysis in valid JSON format with the following structure:
+            {
+                "has_drawstrings": boolean,
+                "confidence": float between 0.0 and 1.0,
+                "reasoning": string,
+                "text_analysis": string,
+                "text_confidence": float between 0.0 and 1.0,
+                "text_reasoning": string
+            }
+            """
+            
             response = await self.client.responses.parse(
                 model="gpt-4.1",
                 input=[
-                    {"role": "system", "content": self.IMAGE_PROMPT},
+                    {"role": "system", "content": self.IMAGE_PROMPT + json_format_instructions},
                     {"role": "user", "content": [
                         {"type": "input_image", "image_url": image_url}
                     ]}
@@ -232,17 +263,38 @@ class DrawstringsEvaluator:
                 text_format=ImageAnalysis,
                 temperature=0.2
             )
+            
+            print(response.output_parsed)
+            
+            # Validate the response
+            if not isinstance(response.output_parsed, ImageAnalysis):
+                raise ValueError("Invalid response format")
+                
             return response.output_parsed
+            
         except Exception as e:
-            print(f"Error analyzing image: {e}")
-            return ImageAnalysis(
-                has_drawstrings=False,
-                confidence=0.0,
-                reasoning="Error analyzing image",
-                text_analysis="No text analysis available",
-                text_confidence=0.0,
-                text_reasoning="Error analyzing image"
-            )
+            error_msg = str(e)
+            if "validation error" in error_msg.lower() or "json_invalid" in error_msg.lower():
+                print(f"JSON parsing error in image analysis for {image_url}")
+                # Return a default response for JSON parsing errors
+                return ImageAnalysis(
+                    has_drawstrings=False,
+                    confidence=0.0,
+                    reasoning="Error parsing image analysis response",
+                    text_analysis="No text analysis available",
+                    text_confidence=0.0,
+                    text_reasoning="Error parsing image analysis response"
+                )
+            else:
+                print(f"Error analyzing image {image_url}: {error_msg}")
+                return ImageAnalysis(
+                    has_drawstrings=False,
+                    confidence=0.0,
+                    reasoning=f"Error analyzing image: {error_msg}",
+                    text_analysis="No text analysis available",
+                    text_confidence=0.0,
+                    text_reasoning=f"Error analyzing image: {error_msg}"
+                )
 
     def format_listing(self, listing: Dict) -> str:
         """Format a listing into a clear, structured string highlighting relevant information."""
@@ -328,8 +380,6 @@ class DrawstringsEvaluator:
     def get_similar_cases(self, listing: Dict, n_results: int = 3):
         """Retrieve similar cases from the vector store."""
         query = self.format_for_similarity_search(listing)
-        
-        print(f"Query: {query}")
         return self.vector_store.search_similar_cases(query, n_results=n_results)
 
     async def make_final_evaluation(self, image_analysis: ImageAnalysis, text_analysis: TextAnalysis, listing: Dict) -> FinalEvaluation:
@@ -374,7 +424,6 @@ Children's Outerwear Analysis:
                 similar_cases=similar_cases_str
             )
             
-            print(f"Prompt: {prompt}")
             response = await self.client.responses.parse(
                 model="gpt-4.1",
                 input=[
@@ -628,13 +677,11 @@ Children's Outerwear Analysis:
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
                     error_msg = f"Task {i} failed with error: {str(result)}"
-                    print(error_msg)
                     errors.append(error_msg)
                     predictions.append("out_of_scope")  # Default to out_of_scope on error
                     continue
                 if result is None:
                     error_msg = f"Task {i} returned None"
-                    print(error_msg)
                     errors.append(error_msg)
                     predictions.append("out_of_scope")  # Default to out_of_scope on None
                     continue
@@ -664,9 +711,6 @@ Children's Outerwear Analysis:
 
 async def main():
     evaluator = DrawstringsEvaluator()
-    
-    # Debug the collection
-    evaluator.vector_store.debug_collection()
     
     # Load the dataset
     data = evaluator.load_data("labeled_dataset.json")
