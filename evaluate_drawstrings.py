@@ -136,16 +136,21 @@ class DrawstringsEvaluator:
         Text Analysis:
         {text_analysis}
 
+        Original Product Listing:
+        {listing}
+
         Please make a final decision by:
         1. Considering both analyses' findings and confidence levels
-        2. Evaluating if ALL THREE conditions are clearly met
-        3. Providing your confidence in the final decision
-        4. Explaining your reasoning, especially if you disagree with either analysis
+        2. Reviewing the original product listing for any additional context
+        3. Evaluating if ALL THREE conditions are clearly met
+        4. Providing your confidence in the final decision
+        5. Explaining your reasoning, especially if you disagree with either analysis
 
         Remember: 
         - You must have clear evidence of ALL THREE conditions to classify as a violation
         - If any condition is unclear or ambiguous, classify as out_of_scope
         - Focus on clear, explicit evidence rather than assumptions
+        - Use the original listing to resolve any ambiguities in the analyses
         """
 
     def load_data(self, file_path: str) -> List[Dict]:
@@ -175,14 +180,61 @@ class DrawstringsEvaluator:
             print(f"Error analyzing image: {e}")
             return ImageAnalysis(has_drawstrings=False, confidence=0.0, reasoning="Error analyzing image")
 
+    def format_listing(self, listing: Dict) -> str:
+        """Format a listing into a clear, structured string highlighting relevant information."""
+        formatted = []
+        
+        # Title and basic info
+        if listing.get("title"):
+            formatted.append(f"Title: {listing['title']}")
+        
+        # Description
+        if listing.get("description"):
+            formatted.append(f"\nDescription: {listing['description']}")
+        
+        # Size and age information
+        size_info = []
+        if listing.get("size"):
+            size_info.append(f"Size: {listing['size']}")
+        if listing.get("age"):
+            size_info.append(f"Age: {listing['age']}")
+        if size_info:
+            formatted.append(f"\nSize/Age Information: {' | '.join(size_info)}")
+        
+        # Category and tags
+        category_info = []
+        if listing.get("category"):
+            category_info.append(f"Category: {listing['category']}")
+        if listing.get("tags"):
+            category_info.append(f"Tags: {', '.join(listing['tags'])}")
+        if category_info:
+            formatted.append(f"\nCategory Information: {' | '.join(category_info)}")
+        
+        # Material and features
+        feature_info = []
+        if listing.get("materials"):
+            feature_info.append(f"Materials: {', '.join(listing['materials'])}")
+        if listing.get("features"):
+            feature_info.append(f"Features: {', '.join(listing['features'])}")
+        if feature_info:
+            formatted.append(f"\nProduct Features: {' | '.join(feature_info)}")
+        
+        # Images
+        if listing.get("images"):
+            formatted.append(f"\nNumber of Images: {len(listing['images'])}")
+            formatted.append(f"First Image URL: {listing['images'][0]}")
+        
+        return "\n".join(formatted)
+
     async def analyze_text(self, listing: Dict) -> TextAnalysis:
         """Analyze the listing text to determine if it's children's outerwear."""
         try:
+            formatted_listing = self.format_listing(listing)
             response = await self.client.responses.parse(
                 model="gpt-4.1",
                 input=[
                     {"role": "system", "content": "You are a product safety expert specializing in children's clothing regulations."},
-                    {"role": "user", "content": self.TEXT_PROMPT.format(listing=json.dumps(listing, indent=2))}
+                    {"role": "user", "content": self.TEXT_PROMPT.format(listing=formatted_listing)}
                 ],
                 text_format=TextAnalysis,
                 temperature=0.2
@@ -192,12 +244,14 @@ class DrawstringsEvaluator:
             print(f"Error analyzing text: {e}")
             return TextAnalysis(is_childrens_outerwear=False, confidence=0.0, reasoning="Error analyzing text")
 
-    async def make_final_evaluation(self, image_analysis: ImageAnalysis, text_analysis: TextAnalysis) -> FinalEvaluation:
-        """Make a final evaluation based on both analyses."""
+    async def make_final_evaluation(self, image_analysis: ImageAnalysis, text_analysis: TextAnalysis, listing: Dict) -> FinalEvaluation:
+        """Make a final evaluation based on both analyses and the original listing."""
         try:
+            formatted_listing = self.format_listing(listing)
             prompt = self.FINAL_PROMPT.format(
                 image_analysis=f"Has drawstrings: {image_analysis.has_drawstrings}, Confidence: {image_analysis.confidence:.2f}, Reasoning: {image_analysis.reasoning}",
-                text_analysis=f"Is children's outerwear: {text_analysis.is_childrens_outerwear}, Confidence: {text_analysis.confidence:.2f}, Reasoning: {text_analysis.reasoning}"
+                text_analysis=f"Is children's outerwear: {text_analysis.is_childrens_outerwear}, Confidence: {text_analysis.confidence:.2f}, Reasoning: {text_analysis.reasoning}",
+                listing=formatted_listing
             )
             
             response = await self.client.responses.parse(
@@ -225,8 +279,16 @@ class DrawstringsEvaluator:
             self.analyze_text(listing)
         )
         
-        #Let's always make the final evaluation
-        final_eval = await self.make_final_evaluation(image_analysis, text_analysis)
+        # If either analysis has low confidence, we can skip the final evaluation
+        if image_analysis.confidence < 0.2 or text_analysis.confidence < 0.2:
+            return DrawStringEvaluation(
+                classification="out_of_scope",
+                reasoning=f"Low confidence in analyses. Image: {image_analysis.confidence:.2f}, Text: {text_analysis.confidence:.2f}"
+            )
+        
+        # Make final evaluation
+        final_eval = await self.make_final_evaluation(image_analysis, text_analysis, listing)
+        
         return DrawStringEvaluation(
             classification="etsy.childrens_drawstrings" if final_eval.is_violation else "out_of_scope",
             reasoning=final_eval.reasoning
