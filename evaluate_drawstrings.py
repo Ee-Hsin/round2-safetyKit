@@ -194,20 +194,20 @@ class DrawstringsEvaluator:
             self.analyze_text(listing)
         )
         
-        # If either analysis has low confidence, we can skip the final evaluation
-        if image_analysis.confidence < 0.2 or text_analysis.confidence < 0.2:
+        if image_analysis.has_drawstrings or (not image_analysis.has_drawstrings and image_analysis.confidence < 0.2) and text_analysis.is_childrens_outerwear or (not text_analysis.is_childrens_outerwear and text_analysis.confidence < 0.2): 
+            # Make final evaluation
+            final_eval = await self.make_final_evaluation(image_analysis, text_analysis)
+            
             return DrawStringEvaluation(
+                classification="etsy.childrens_drawstrings" if final_eval.is_violation else "out_of_scope",
+                reasoning=final_eval.reasoning
+            )
+            
+        # If both analyses return out of scope, we can skip the final evaluation
+        return DrawStringEvaluation(
                 classification="out_of_scope",
                 reasoning=f"Low confidence in analyses. Image: {image_analysis.confidence:.2f}, Text: {text_analysis.confidence:.2f}"
             )
-        
-        # Make final evaluation
-        final_eval = await self.make_final_evaluation(image_analysis, text_analysis)
-        
-        return DrawStringEvaluation(
-            classification="etsy.childrens_drawstrings" if final_eval.is_violation else "out_of_scope",
-            reasoning=final_eval.reasoning
-        )
 
     def calculate_precision(self, predictions, true_labels):
         tp = sum(
