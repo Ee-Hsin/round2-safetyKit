@@ -37,39 +37,36 @@ class DrawstringsEvaluator:
 
         Task: Analyze this image of a clothing item and determine if it has drawstrings.
 
-        IMPORTANT: Only classify as having drawstrings if you can clearly identify a functional drawstring or strong evidence of one.
+        IMPORTANT: Classify as having drawstrings if there is any reasonable indication of functional or decorative drawstrings.
 
-        A drawstring is a functional cord, string, or similar feature that can be pulled to adjust the fit of the garment. Common locations for drawstrings include:
+        A drawstring is any cord, string, or similar feature that can be pulled to adjust the fit of the garment. Common locations for drawstrings include:
         - Hood drawstrings (most common in children's outerwear)
         - Waist drawstrings
         - Neck drawstrings
-        - Any adjustable cords/strings that serve a functional purpose
+        - Any adjustable cords/strings
+        - Toggle cords
+        - Elastic cords with toggles
+        - Any hanging or adjustable strings
 
         Look carefully for:
         1. Visible drawstrings hanging from the garment
         2. Drawstring holes or channels where drawstrings would be threaded
         3. Any adjustable cords or strings that could be used to tighten the garment
-        4. Toggle mechanisms that are clearly functional
-        5. Any hanging cords or strings that serve a clear adjustment purpose
+        4. Toggle mechanisms that might indicate the presence of drawstrings
+        5. Any hanging cords or strings, even if they appear decorative
 
         RED FLAGS (indicate likely drawstrings):
-        - Functional drawstrings in hoods or waists
-        - Clear drawstring channels with visible strings
-        - Functional toggle mechanisms
-        - Adjustable cords that clearly serve a purpose
-
-        NOT CONSIDERED DRAWSTRINGS:
-        - Purely decorative strings or cords
-        - Non-functional toggles
-        - Zipper pulls
-        - Button loops
-        - Decorative tassels
-        - Non-adjustable cords
+        - Any visible cords or strings
+        - Holes or channels in hoods or waists
+        - Toggle mechanisms
+        - Elastic cords with toggles
+        - Any hanging or adjustable features
+        - Decorative strings that could be functional
 
         Provide your analysis with:
-        1. Whether the item has functional drawstrings (be specific about what you see)
+        1. Whether the item has drawstrings (be inclusive - if there's any reasonable indication, classify as having drawstrings)
         2. Your confidence level (0.0 to 1.0)
-        3. Brief reasoning for your decision, including any specific features you observed
+        3. Brief reasoning for your decision, including any features you observed
         """
 
         self.TEXT_PROMPT = """
@@ -77,42 +74,39 @@ class DrawstringsEvaluator:
 
         Task: Evaluate if the following product listing is for children's upper body outerwear.
 
-        IMPORTANT: Only classify as children's outerwear if there is clear evidence of both children's sizing AND outerwear type.
+        IMPORTANT: Classify as children's outerwear if there is any reasonable indication it might be for children and is outerwear.
 
-        The item is children's upper body outerwear if BOTH of these conditions are met:
+        The item is children's upper body outerwear if ANY of these conditions are met:
 
-        1. It is clearly for children, indicated by ANY of these:
-           - Explicitly stated to be for children size/age 14 and under
-           - Listed in specific children's sizes (2T, 3T, 4, 5, 6, 7, 8, 10, 12, 14)
-           - Clearly described as being for babies, toddlers, or youth
-           - Listed in a children's clothing category with clear age/size indicators
+        1. It might be for children, indicated by ANY of these:
+           - Mentions of children, kids, baby, toddler, or youth
+           - Children's sizes (2T, 3T, 4, 5, 6, 7, 8, 10, 12, 14)
+           - Descriptions suggesting it's for children
+           - Listed in children's clothing categories
+           - Mentions of being for babies
+           - Any indication it might be for children 14 and under
 
-        2. It is clearly upper body outerwear, indicated by ANY of these:
-           - Explicitly described as a hoodie, sweatshirt, sweater, jacket, raincoat, cape, or poncho
-           - Clearly described as being worn over other clothing
-           - Specifically mentioned as outerwear or outer layer
+        2. It might be outerwear, indicated by ANY of these:
+           - Described as a hoodie, sweatshirt, sweater, jacket, raincoat, cape, or poncho
+           - Described as being worn over other clothing
+           - Mentioned as outerwear or outer layer
            - Has features typical of outerwear (hoods, heavy fabric, weather protection)
+           - Described as warm or protective clothing
 
         RED FLAGS (indicate likely children's outerwear):
-        - Clear children's size indicators (2T-14)
-        - Explicit mentions of being for children/babies
-        - Clear outerwear descriptions
-        - Specific outerwear features mentioned
-
-        NOT CONSIDERED CHILDREN'S OUTERWEAR:
-        - Items that only mention "kids" in the title but are clearly for adults
-        - Items that don't specify age/size
-        - Items that could be for any age
-        - Items that don't clearly indicate outerwear type
-        - Items that are clearly for adults but mention "kids" in passing
+        - Any mention of children or kids
+        - Any children's sizes
+        - Any outerwear descriptions
+        - Any protective clothing features
+        - Any mentions of being for babies or toddlers
 
         Product Listing:
         {listing}
 
         Provide your analysis with:
-        1. Whether it's clearly children's upper body outerwear (be specific about the evidence)
+        1. Whether it's likely children's upper body outerwear (be inclusive - if there's any reasonable indication, classify as children's outerwear)
         2. Your confidence level (0.0 to 1.0)
-        3. Brief reasoning for your decision, including specific indicators you found
+        3. Brief reasoning for your decision, including any indicators you found
         """
 
         self.FINAL_PROMPT = """
@@ -120,13 +114,13 @@ class DrawstringsEvaluator:
 
         Task: Make a final evaluation of whether this product listing violates the children's drawstrings policy.
 
-        IMPORTANT: Only classify as a violation if there is clear evidence of ALL THREE conditions.
+        IMPORTANT: Classify as a violation if there is any reasonable indication that ALL THREE conditions might be met.
 
         POLICY RULES:
         The item violates the policy if ALL of these conditions are met:
-        1. It is clearly intended for children size/age 14 and under
-        2. It clearly contains functional drawstrings
-        3. It is clearly upper body outerwear
+        1. It is likely intended for children size/age 14 and under
+        2. It likely contains drawstrings
+        3. It is likely upper body outerwear
 
         You have received two separate analyses:
 
@@ -142,14 +136,14 @@ class DrawstringsEvaluator:
         Please make a final decision by:
         1. Considering both analyses' findings and confidence levels
         2. Reviewing the original product listing for any additional context
-        3. Evaluating if ALL THREE conditions are clearly met
+        3. Evaluating if there is any reasonable indication that ALL THREE conditions are met
         4. Providing your confidence in the final decision
         5. Explaining your reasoning, especially if you disagree with either analysis
 
         Remember: 
-        - You must have clear evidence of ALL THREE conditions to classify as a violation
-        - If any condition is unclear or ambiguous, classify as out_of_scope
-        - Focus on clear, explicit evidence rather than assumptions
+        - If there is any reasonable indication that ALL THREE conditions are met, classify as a violation
+        - When in doubt about any condition, consider the overall context and likelihood
+        - It's better to flag a potential violation than to miss one
         - Use the original listing to resolve any ambiguities in the analyses
         """
 
@@ -268,14 +262,61 @@ class DrawstringsEvaluator:
             print(f"Error in final evaluation: {e}")
             return FinalEvaluation(is_violation=False, confidence=0.0, reasoning="Error in final evaluation")
 
+    async def analyze_all_images(self, image_urls: List[str]) -> ImageAnalysis:
+        """Analyze all images in a listing and combine their results."""
+        if not image_urls:
+            return ImageAnalysis(has_drawstrings=False, confidence=0.0, reasoning="No images available")
+        
+        # Analyze all images concurrently
+        image_analyses = await asyncio.gather(
+            *[self.analyze_image(url) for url in image_urls],
+            return_exceptions=True
+        )
+        
+        # Filter out any errors and get valid analyses
+        valid_analyses = []
+        for analysis in image_analyses:
+            if isinstance(analysis, Exception):
+                print(f"Error analyzing image: {str(analysis)}")
+                continue
+            if analysis is None:
+                continue
+            valid_analyses.append(analysis)
+        
+        if not valid_analyses:
+            return ImageAnalysis(has_drawstrings=False, confidence=0.0, reasoning="No valid image analyses")
+        
+        # If any image shows drawstrings, consider it a positive
+        has_drawstrings = any(analysis.has_drawstrings for analysis in valid_analyses)
+        
+        # Take the highest confidence score
+        max_confidence = max(analysis.confidence for analysis in valid_analyses)
+        
+        # Combine reasoning from all analyses
+        reasoning_parts = []
+        for i, analysis in enumerate(valid_analyses, 1):
+            if analysis.has_drawstrings:
+                reasoning_parts.append(f"Image {i}: {analysis.reasoning}")
+        
+        if not reasoning_parts:
+            reasoning_parts = [f"Image {i}: No drawstrings detected" for i in range(1, len(valid_analyses) + 1)]
+        
+        combined_reasoning = " | ".join(reasoning_parts)
+        
+        return ImageAnalysis(
+            has_drawstrings=has_drawstrings,
+            confidence=max_confidence,
+            reasoning=f"Analyzed {len(valid_analyses)} images. {combined_reasoning}"
+        )
+
     async def classify_listing(self, listing: Dict) -> DrawStringEvaluation:
         """Classify a single listing using both image and text analysis."""
-        # Get the first image URL from the listing
-        image_url = listing.get("images", [""])[0] if listing.get("images") else ""
+        # Get all image URLs from the listing
+        image_urls = listing.get("images", [])
         
         # Run both analyses concurrently
         image_analysis, text_analysis = await asyncio.gather(
-            self.analyze_image(image_url),
+            self.analyze_all_images(image_urls),
             self.analyze_text(listing)
         )
         
